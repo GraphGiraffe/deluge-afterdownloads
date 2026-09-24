@@ -1,0 +1,46 @@
+name: Build release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python: ['3.9', '3.13', '3.14']
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -v
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify tag matches source version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python -c "import os,build; assert os.environ['RELEASE_TAG'] == 'v'+build.VERSION, 'Version mismatch'"
+      - name: Build Python-specific source eggs
+        run: |
+          for version in 3.9 3.10 3.11 3.12 3.13 3.14; do
+            python build.py --python-version "$version"
+          done
+          cd dist
+          sha256sum *.egg > SHA256SUMS.txt
+      - name: Upload verified release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: AfterDownloads-${{ github.ref_name }}-release
+          path: |
+            dist/*.egg
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
