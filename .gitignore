@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+dist/
+build/
+*.egg-info/
+.venv/
+*.exe
+*.dll
+*.pdb
+*.dpapi
+*.conf
+*.log
+*.egg
+*.zip
+.env
+.env.*
+test-results/
