@@ -21,4 +21,4 @@ class Core(CorePluginBase):
 
     @export
     def get_status(self):
-        return dict(version='1.0.0', **self.ui_status)
+        return dict(version='1.0.1', **self.ui_status)

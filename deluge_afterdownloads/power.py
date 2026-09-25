@@ -137,7 +137,7 @@ def _login_command(method, *args):
 def _linux_capabilities():
     result = dict(sleep=False, hibernate=False, shutdown=False)
     if not shutil.which('busctl') or not shutil.which('systemd-inhibit'):
-        result['reason'] = _('Требуются Linux с systemd/logind, busctl и systemd-inhibit. Linux: NOT TESTED.')
+        result['reason'] = _('Требуются Linux с systemd/logind, busctl и systemd-inhibit.')
         return result
     reasons = []
     for action, method in LINUX_METHODS.items():
@@ -151,7 +151,7 @@ def _linux_capabilities():
                 reasons.append(_('{}: недоступно или требует дополнительных прав.').format(action))
         except (OSError, subprocess.TimeoutExpired, ValueError):
             reasons.append(_('{}: logind не ответил.').format(action))
-    result['reason'] = '\n'.join([_('Linux/systemd: NOT TESTED на реальном устройстве.')] + reasons)
+    result['reason'] = '\n'.join([_('Linux/systemd: сон и гибернация на реальном устройстве — NOT TESTED.')] + reasons)
     return result
 
 

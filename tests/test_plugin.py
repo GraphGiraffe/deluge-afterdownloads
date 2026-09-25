@@ -255,13 +255,94 @@ class ControllerTests(unittest.TestCase):
         gtkui.threads.deferToThread.assert_not_called()
         self.assertFalse(ui.armed)
 
+    def test_linux_inhibitor_does_not_hide_or_block_selected_action(self):
+        # Model logind returning "challenge" while our own inhibitor is held.
+        # Exercise the complete controller flow, mocking only host integration.
+        for action in ('sleep', 'hibernate'):
+            for dry_run in (True, False):
+                with self.subTest(action=action, dry_run=dry_run):
+                    ui = self.make_ui()
+                    ui.armed = False
+                    ui.guard = None
+                    ui.config = MagicMock()
+                    ui._poll = MagicMock()
+                    ui.dry.get_active.return_value = dry_run
+                    for name, button in ui.buttons.items():
+                        button.get_active.return_value = name == action
+                    guard = MagicMock(active=False)
+                    guard.close.side_effect = lambda: setattr(guard, 'active', False)
+                    now = [0]
+                    queried_while_inhibited = []
+
+                    def acquire():
+                        guard.active = True
+                        return guard
+
+                    def logind(command, **kwargs):
+                        queried_while_inhibited.append(guard.active)
+                        answer = 'challenge' if guard.active and command[-1] != 'CanPowerOff' else 'yes'
+                        return types.SimpleNamespace(returncode=0, stdout='s "{}"'.format(answer))
+
+                    def dispatch(function, *args):
+                        self.assertFalse(guard.active)
+                        function(*args)
+                        return MagicMock()
+
+                    with patch.object(gtkui.time, 'monotonic', side_effect=lambda: now[0]), \
+                            patch.object(gtkui.component, 'get', create=True), \
+                            patch.object(gtkui.client, 'connected', return_value=True), \
+                            patch.object(gtkui.client, 'is_localhost', return_value=True), \
+                            patch.object(power.sys, 'platform', 'linux'), \
+                            patch.object(power, 'AwakeGuard', side_effect=acquire), \
+                            patch.object(power, 'capabilities', side_effect=power._linux_capabilities), \
+                            patch.object(power.shutil, 'which', return_value='/usr/bin/tool'), \
+                            patch.object(power.subprocess, 'run', side_effect=logind), \
+                            patch.object(power, '_execute_linux') as execute, \
+                            patch.object(gtkui.threads, 'deferToThread', side_effect=dispatch) as defer:
+                        ui._start()
+                        self.assertTrue(ui.armed)
+                        self.assertTrue(guard.active)
+                        self.assertTrue(ui.caps[action])
+                        token = ui.generation
+                        ui._received({'a': DONE}, token, False)
+                        ui._refresh_support()  # Reopening preferences during the countdown.
+                        self.assertTrue(ui.caps[action])
+                        ui.none_button.set_active.assert_not_called()
+                        ui.buttons[action].set_sensitive.assert_called_with(False)
+                        ui.support.set_text.assert_called_with(ui.caps['reason'])
+                        now[0] = 59.9
+                        ui._received({'a': DONE}, token, True)
+                        self.assertTrue(guard.active)
+                        defer.assert_not_called()
+                        now[0] = 60
+                        ui._received({'a': DONE}, token, True)
+                        guard.close.assert_called_once()
+                        self.assertFalse(ui.armed)
+                        self.assertTrue(ui.caps[action])
+                        self.assertTrue(queried_while_inhibited)
+                        self.assertFalse(any(queried_while_inhibited))
+                        if dry_run:
+                            defer.assert_not_called()
+                            execute.assert_not_called()
+                            ui.status.set_text.assert_called_with('Dry-run completed: ' + i18n._(model.ACTIONS[action]))
+                        else:
+                            defer.assert_called_once_with(power.execute, action)
+                            execute.assert_called_once_with(action)
+
     def test_action_becomes_unavailable_at_end(self):
         ui = self.make_ui()
         ui.dry_run = False
-        with patch.object(power, 'capabilities', return_value=dict(sleep=False, hibernate=False, shutdown=True, reason='Unavailable')):
+        guard = ui.guard
+
+        def unavailable_after_release():
+            guard.close.assert_called_once()
+            return dict(sleep=False, hibernate=False, shutdown=True, reason='Unavailable')
+
+        with patch.object(power, 'capabilities', side_effect=unavailable_after_release):
             gtkui.threads.deferToThread.reset_mock()
             ui._received({'a': DONE}, 1, True)
         gtkui.threads.deferToThread.assert_not_called()
+        ui.status.set_text.assert_called_with('The selected action is no longer available on this system.')
         self.assertFalse(ui.armed)
 
     def test_disconnect_cancels(self):

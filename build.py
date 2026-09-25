@@ -3,7 +3,7 @@ import argparse
 import pathlib
 import zipfile
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 ROOT = pathlib.Path(__file__).resolve().parent
 
 

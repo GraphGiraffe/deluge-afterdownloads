@@ -93,7 +93,10 @@ class GtkUI(Gtk3PluginBase):
                                            self.caps['hibernate']).addErrback(lambda _: None)
 
     def _refresh_support(self):
-        self.caps = power.capabilities()
+        # logind can reject CanSuspend/CanHibernate because of our own inhibitor.
+        # Keep the pre-monitoring result until that inhibitor has been released.
+        if self.guard is None:
+            self.caps = power.capabilities()
         self.support.set_text(self.caps['reason'])
         for action, button in self.buttons.items():
             button.set_sensitive(self.caps[action] and not self.armed)
@@ -148,9 +151,7 @@ class GtkUI(Gtk3PluginBase):
         self.inflight = False
         self.monitor.deadline = None
         self._close_dialog()
-        if self.guard:
-            self.guard.close()
-            self.guard = None
+        self._release_guard()
         self.start_button.set_sensitive(True)
         self.cancel_button.set_sensitive(False)
         self.dry.set_sensitive(True)
@@ -158,6 +159,11 @@ class GtkUI(Gtk3PluginBase):
         self.status.set_text(message)
         self._report()
         log.info('AfterDownloads: %s', message)
+
+    def _release_guard(self):
+        if self.guard:
+            self.guard.close()
+            self.guard = None
 
     def _tick(self):
         if not self.enabled:
@@ -224,6 +230,9 @@ class GtkUI(Gtk3PluginBase):
             self.dialog.show_all()
             self.dialog.present()
         elif outcome == 'execute':
+            # A fresh final torrent response has confirmed completion. Release
+            # our inhibitor before checking permissions; other blockers still apply.
+            self._release_guard()
             self._refresh_support()
             if not self.caps[self.action]:
                 self._stop(_('Выбранное действие больше недоступно в системе.'))
