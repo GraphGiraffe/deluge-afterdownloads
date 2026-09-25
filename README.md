@@ -7,14 +7,14 @@ A native Deluge 2.x GTK3 plugin that prevents automatic sleep while downloads ar
 | Platform | Implementation | Validation |
 | --- | --- | --- |
 | Windows 10/11, Deluge 2.x GTK3 | Win32 power APIs and a dedicated awake thread | Automated tests; operation and dry-run confirmed in Deluge 2.2.0 |
-| Ubuntu and other Linux distributions with systemd/logind | systemd-inhibit and logind D-Bus via busctl | Automated tests in Ubuntu 26.04 WSL; desktop integration and real power actions **NOT TESTED** |
+| Ubuntu and other Linux distributions with systemd/logind | systemd-inhibit and logind D-Bus via busctl | Automated tests in Ubuntu 26.04 WSL; preferences, countdown, and shutdown after downloads confirmed by a user on an Ubuntu desktop. Real Sleep and Hibernate **NOT TESTED** |
 | Linux without systemd/logind | Not implemented | Actions disabled |
 | macOS, FreeBSD | Not implemented | Actions disabled |
 
 ## Features
 
 - Choose Sleep, Hibernate, or Shut down using radio buttons in Deluge preferences.
-- Sleep and hibernation availability is checked when the plugin is enabled, preferences are opened, monitoring starts, and an action is about to run. Unavailable actions are disabled with an explanation.
+- Sleep and hibernation availability is checked when the plugin is enabled, idle preferences are opened, and monitoring starts. During monitoring the selection is locked and the previous result is kept, so the plugin's own sleep inhibitor does not make the action appear unavailable. At the end, the inhibitor is released before checking availability again. Unavailable actions are disabled with an explanation.
 - Paused torrents are ignored. Unfinished queued downloads, file checks, and errors prevent the action.
 - Automatic sleep is blocked while waiting. Windows uses `ES_CONTINUOUS | ES_SYSTEM_REQUIRED` on a dedicated thread, following the PowerToys Awake approach. Linux uses `systemd-inhibit`.
 - A separate dialog provides a 60-second countdown and a Cancel button. Closing the dialog also cancels monitoring.
@@ -51,7 +51,7 @@ python -m unittest discover -s tests -v
 python build.py --python-version 3.9
 ```
 
-Output: `dist/AfterDownloads-1.0.0-py3.9.egg`. This ZIP contains Python source and Deluge metadata, without an EXE, DLL, or bundled third-party dependencies.
+Output from the current development version: `dist/AfterDownloads-1.0.1-py3.9.egg`. This ZIP contains Python source and Deluge metadata, without an EXE, DLL, or bundled third-party dependencies.
 
 Releases include tags for Python 3.9â€“3.14 and `SHA256SUMS.txt`. Package contents are identical; select the filename matching Deluge's Python version. A filename tag alone does not establish compatibility with every Deluge build. See [Testing](docs/TESTING.md) for the configurations actually checked.
 

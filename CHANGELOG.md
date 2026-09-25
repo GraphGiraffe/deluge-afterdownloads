@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 (unreleased)
+
+- Fix Linux Sleep and Hibernate becoming unavailable because of the plugin's own sleep inhibitor.
+- Preserve the selected action during monitoring, including when reopening preferences. Release the inhibitor after the final torrent check and before checking action availability again.
+- Keep refusing genuinely unavailable actions after the inhibitor is released; no fallback action or interactive authentication is used.
+- Add regression coverage for the full countdown, dry-run, real-action dispatch with a mocked backend, and loss of action availability.
+- Record user-confirmed shutdown after downloads on an Ubuntu desktop. Real Linux Sleep and Hibernate remain **NOT TESTED**.
+
 ## 1.0.0
 
 - Initial native GTK3 plugin for Deluge 2.x on Windows.
